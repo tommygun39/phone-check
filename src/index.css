@@ -58,6 +58,7 @@ p {
   text-align: center;
   margin-bottom: 0.5rem;
   background: linear-gradient(135deg, #58a6ff, #8a2be2);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -227,4 +228,34 @@ input:focus, select:focus {
 .tab.active {
   background: rgba(88, 166, 255, 0.1);
   color: var(--accent-color);
+}
+
+.connection-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(46, 160, 67, 0.1);
+  border: 1px solid var(--success);
+  color: var(--success);
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.connection-badge.disconnected {
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.btn-secondary {
+  background-color: #21262d;
+  color: #c9d1d9;
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background-color: #30363d;
+  border-color: #8b949e;
 }
