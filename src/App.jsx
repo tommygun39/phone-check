@@ -9,8 +9,8 @@ import {
   Usb, RefreshCcw, Power
 } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { getModelFromImei, getDeviceHint } from './ImeiService';
-import { useCallback } from 'react';
+import { getModelFromImei, getDeviceHint, generateSimulatedImei } from './ImeiService';
+import { useCallback, useRef } from 'react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('check');
@@ -38,6 +38,7 @@ export default function App() {
   const [deviceInfo, setDeviceInfo] = useState(null);
   const [logs, setLogs] = useState([]);
   const [imeiHint, setImeiHint] = useState('');
+  const autoCheckTriggered = useRef(false);
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [msg, ...prev].slice(0, 5));
@@ -46,25 +47,65 @@ export default function App() {
 
   const history = useLiveQuery(() => db.checks.toArray(), []);
 
-  const handleImeiAutoRead = useCallback((imei) => {
+  const handleCheck = useCallback(async (e) => {
+    if (e) e.preventDefault();
+    
+    // Minimal validation to avoid checking empty forms
+    if (!formData.imei && !formData.model) {
+      addLog("Atenție: Formularul este gol.");
+      return;
+    }
+
+    addLog(`Rulăm Expert Check pentru ${formData.model || 'Dispozitiv'}...`);
+    const evaluation = calculateRiskScore(formData);
+    const estimated = estimatePrice(formData.model, formData.condition, evaluation.score);
+    
+    // Save to local database
+    const record = {
+      imei: formData.imei || 'Unknown',
+      model: formData.model || 'Unknown',
+      date: new Date().toISOString(),
+      score: evaluation.score,
+      reasons: evaluation.reasons,
+      priceEstimation: estimated,
+      rawData: { ...formData }
+    };
+    
+    await db.checks.add(record);
+    
+    setResult(evaluation);
+    setPricing(estimated);
+    addLog("Verificare finalizată cu succes.");
+  }, [formData, addLog]);
+
+  const handleImeiAutoRead = useCallback((imei, autoTrigger = false) => {
     if (!imei) return;
     addLog(`Analiză IMEI primită: ${imei}...`);
     const model = getModelFromImei(imei);
     const hint = getDeviceHint(imei);
     setImeiHint(hint);
+    
     setFormData(prev => ({
       ...prev,
       imei: imei,
       model: model || prev.model
     }));
-    if (model) addLog(`Model identificat: ${model}`);
-  }, [addLog]);
+    
+    if (model) {
+      addLog(`Model identificat: ${model}`);
+      if (autoTrigger) {
+        addLog("Declanșăm Verificarea Automată...");
+        // Use a slight timeout to ensure state is updated or call handleCheck with values
+        setTimeout(() => handleCheck(), 500);
+      }
+    }
+  }, [addLog, handleCheck]);
 
   useEffect(() => {
     if (showScanner) {
       const scanner = new Html5QrcodeScanner('reader', { fps: 10, qrbox: { width: 250, height: 250 } });
       scanner.render((decodedText) => {
-        handleImeiAutoRead(decodedText);
+        handleImeiAutoRead(decodedText, true); // Auto check after scan
         setShowScanner(false);
         scanner.clear();
       }, (error) => {});
@@ -76,17 +117,21 @@ export default function App() {
     let activeDevice = null;
 
     const handleConnect = async (event) => {
-      addLog(`Dispozitiv nou detectat: ${event.device.productName || 'USB'}`);
+      const productName = event.device.productName || 'USB';
+      addLog(`Dispozitiv nou detectat: ${productName}`);
       setIsConnected(true);
-      setDeviceInfo(event.device.productName || 'Dispozitiv USB');
+      setDeviceInfo(productName);
       
       try {
         const device = event.device;
         activeDevice = device;
         if (!device.opened) await device.open();
         addLog("Comunicare USB deschisă.");
-        const simulatedImei = '35123456' + Math.floor(Math.random() * 10000000).toString().padStart(7, '0');
-        handleImeiAutoRead(simulatedImei);
+        
+        // Precise brand/model matching
+        const simulatedImei = generateSimulatedImei(productName);
+        
+        handleImeiAutoRead(simulatedImei, true); // Auto check after connect
       } catch (err) {
         addLog(`Atenție: Nu s-a putut deschide hardware-ul (${err.message})`);
       }
@@ -105,8 +150,9 @@ export default function App() {
 
       navigator.usb.getDevices().then(devices => {
         if (devices.length > 0) {
+          const device = devices[0];
           setIsConnected(true);
-          setDeviceInfo(devices[0].productName || 'Dispozitiv USB');
+          setDeviceInfo(device.productName || 'Dispozitiv USB');
           addLog("Dispozitiv deja conectat găsit.");
         }
       });
@@ -136,7 +182,8 @@ export default function App() {
     try {
       addLog("Cerere acces USB trimisă...");
       const device = await navigator.usb.requestDevice({ filters: [] });
-      addLog(`Acces permis pentru: ${device.productName}`);
+      const productName = device.productName || "Dispozitiv USB";
+      addLog(`Acces permis pentru: ${productName}`);
       
       await device.open();
       if (device.configuration === null) {
@@ -144,10 +191,12 @@ export default function App() {
       }
       
       setIsConnected(true);
-      setDeviceInfo(device.productName || "Dispozitiv USB");
+      setDeviceInfo(productName);
       
-      const simulatedImei = "35234567" + Math.floor(Math.random() * 10000000).toString().padStart(7, "0");
-      handleImeiAutoRead(simulatedImei);
+      // Precise brand/model matching
+      const simulatedImei = generateSimulatedImei(productName);
+      
+      handleImeiAutoRead(simulatedImei, true); // Auto check
       addLog("IMEI citit cu succes.");
     } catch (err) {
       addLog(`Eroare: ${err.message}`);
@@ -189,27 +238,6 @@ export default function App() {
     }
   };
 
-  const handleCheck = async (e) => {
-    e.preventDefault();
-    const evaluation = calculateRiskScore(formData);
-    const estimated = estimatePrice(formData.model, formData.condition, evaluation.score);
-    
-    // Save to local database
-    const record = {
-      imei: formData.imei || 'Unknown',
-      model: formData.model || 'Unknown',
-      date: new Date().toISOString(),
-      score: evaluation.score,
-      reasons: evaluation.reasons,
-      priceEstimation: estimated,
-      rawData: { ...formData }
-    };
-    
-    await db.checks.add(record);
-    
-    setResult(evaluation);
-    setPricing(estimated);
-  };
 
   const renderRiskCard = () => {
     if (!result) return null;
@@ -367,7 +395,12 @@ export default function App() {
                             <QrCode size={20} />
                         </button>
                     </div>
-                    {imeiHint && <span style={{fontSize: '0.75rem', color: 'var(--accent-color)'}}>{imeiHint}</span>}
+                    {(imeiHint || isConnected) && (
+                      <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px'}}>
+                        {imeiHint && <span style={{fontSize: '0.75rem', color: 'var(--accent-color)'}}>{imeiHint}</span>}
+                        {isConnected && <span style={{fontSize: '0.65rem', background: 'rgba(255, 179, 71, 0.2)', color: '#ffb347', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold'}}>SIMULAT (Browser Limit)</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
