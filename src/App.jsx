@@ -162,17 +162,17 @@ export default function App() {
     setFormData({
       imei: '',
       model: '',
-      kgState: 'Normal',
-      imeiStatus: 'Clean',
-      cscMatch: 'Yes',
-      activationMonths: '12',
-      bootloaderStatus: 'Locked',
+      kgState: '',
+      imeiStatus: '',
+      cscMatch: '',
+      activationMonths: '',
+      bootloaderStatus: '',
       firmwareVersion: '',
       releaseDate: '',
-      financingStatus: 'Paid',
-      warrantyStatus: 'Active',
-      carrierLock: 'Unlocked',
-      condition: 'Good'
+      financingStatus: '',
+      warrantyStatus: '',
+      carrierLock: '',
+      condition: ''
     });
     setResult(null);
     setPricing(null);
@@ -378,6 +378,7 @@ export default function App() {
                  <div className="form-group">
                   <label>KG State</label>
                   <select name="kgState" value={formData.kgState} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Normal">Normal</option>
                     <option value="Prenormal">Prenormal</option>
                     <option value="Active">Active</option>
@@ -387,6 +388,7 @@ export default function App() {
                 <div className="form-group">
                   <label>Status Finanțare</label>
                   <select name="financingStatus" value={formData.financingStatus} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Paid">Achitat Integral</option>
                     <option value="Unpaid">Rate Neachitate / Restanțe</option>
                     <option value="Outstanding">În curs de plată</option>
@@ -398,6 +400,7 @@ export default function App() {
                 <div className="form-group">
                   <label>Bootloader</label>
                   <select name="bootloaderStatus" value={formData.bootloaderStatus} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Locked">Locked (Official)</option>
                     <option value="Unlocked">Unlocked (Custom/Root)</option>
                   </select>
@@ -405,6 +408,7 @@ export default function App() {
                 <div className="form-group">
                    <label>Carrier Lock</label>
                    <select name="carrierLock" value={formData.carrierLock} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Unlocked">Liber Rețea</option>
                     <option value="Locked">Blocat Rețea (SimLock)</option>
                   </select>
@@ -415,6 +419,7 @@ export default function App() {
                 <div className="form-group">
                   <label>Garanție</label>
                   <select name="warrantyStatus" value={formData.warrantyStatus} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Active">Activă</option>
                     <option value="Expired">Expirată</option>
                   </select>
@@ -422,6 +427,7 @@ export default function App() {
                 <div className="form-group">
                   <label>Stare Estetică</label>
                   <select name="condition" value={formData.condition} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Mint">Ca Nou / Tiplă</option>
                     <option value="Good">Bun / Urme normale</option>
                     <option value="Fair">Acceptabil / Zgârieturi</option>
@@ -434,6 +440,7 @@ export default function App() {
                 <div className="form-group">
                   <label>CSC Match</label>
                   <select name="cscMatch" value={formData.cscMatch} onChange={handleInputChange}>
+                    <option value="">Selectează...</option>
                     <option value="Yes">Da (Open Market)</option>
                     <option value="No">Nu (Branded Operator)</option>
                   </select>

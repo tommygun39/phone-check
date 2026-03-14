@@ -9,6 +9,8 @@ export function calculateRiskScore(data) {
   } else if (data.kgState === 'Prenormal') {
     score += 40;
     reasons.push(`KG Status suspect: Prenormal`);
+  } else if (!data.kgState) {
+    // Optionally add a note for missing data, but don't add score
   }
 
   // 2. IMEI DB Status

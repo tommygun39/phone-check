@@ -14,22 +14,30 @@ const MARKET_DATA = {
 };
 
 export function estimatePrice(model, condition, riskScore) {
+  // If no model is provided, return nulled pricing
+  if (!model) {
+    return {
+        min: 0,
+        avg: 0,
+        max: 0,
+        currency: "RON",
+        isPending: true
+    };
+  }
+
   // Find model data or use Generic
   const modelKey = Object.keys(MARKET_DATA).find(m => model.toLowerCase().includes(m.toLowerCase())) || "Generic";
   const data = MARKET_DATA[modelKey];
 
   let estimatedPrice = data.basePrice;
 
-  // Age/Condition adjustment (simulated based on months of activation in UI side usually)
-  // Here we just use a simple multiplier for condition if provided
+  // Age/Condition adjustment
   if (condition === 'Mint') estimatedPrice = data.maxPrice;
-  if (condition === 'Good') estimatedPrice = data.basePrice;
-  if (condition === 'Fair') estimatedPrice = (data.minPrice + data.basePrice) / 2;
-  if (condition === 'Poor') estimatedPrice = data.minPrice;
+  else if (condition === 'Good' || !condition) estimatedPrice = data.basePrice; // Default if empty
+  else if (condition === 'Fair') estimatedPrice = (data.minPrice + data.basePrice) / 2;
+  else if (condition === 'Poor') estimatedPrice = data.minPrice;
 
   // RISK ADJUSTMENT
-  // Every % of risk reduces price significantly
-  // If risk is 100%, price is effectively 0 or price of parts
   if (riskScore >= 80) {
     estimatedPrice = estimatedPrice * 0.2; // Value for parts
   } else if (riskScore > 0) {
@@ -41,6 +49,7 @@ export function estimatePrice(model, condition, riskScore) {
     avg: Math.round(estimatedPrice),
     max: Math.round(estimatedPrice * 1.1),
     currency: "RON",
-    isCriticalRisk: riskScore >= 80
+    isCriticalRisk: riskScore >= 80,
+    isPending: false
   };
 }
