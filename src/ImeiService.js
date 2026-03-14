@@ -15,6 +15,11 @@ const TAC_MAP = {
   '35928311': 'Samsung Galaxy Z Fold 5',
   '35345678': 'iPhone 15 Pro',
   '35456789': 'iPhone 15 Pro Max',
+  '35678901': 'iPhone 14 Pro Max',
+  '35678902': 'iPhone 14 Pro',
+  '35789012': 'iPhone 13 Pro',
+  '35890123': 'Google Pixel 8 Pro',
+  '35901234': 'Google Pixel 7 Pro',
 };
 
 // Precise keyword mapping for USB Product Names
@@ -27,13 +32,15 @@ const PRODUCT_NAME_KEYWORDS = [
   { keywords: ['s21'], model: 'Samsung Galaxy S21' },
   { keywords: ['fold 5'], model: 'Samsung Galaxy Z Fold 5' },
   { keywords: ['fold 4'], model: 'Samsung Galaxy Z Fold 4' },
-  { keywords: ['fold 3'], model: 'Samsung Galaxy Z Fold 3' },
-  { keywords: ['flip 5'], model: 'Samsung Galaxy Z Flip 5' },
+  { keywords: ['pixel 8 pro'], model: 'Google Pixel 8 Pro' },
+  { keywords: ['pixel 7 pro'], model: 'Google Pixel 7 Pro' },
   { keywords: ['iphone 15 pro max'], model: 'iPhone 15 Pro Max' },
   { keywords: ['iphone 15 pro'], model: 'iPhone 15 Pro' },
   { keywords: ['iphone 14 pro max'], model: 'iPhone 14 Pro Max' },
   { keywords: ['iphone 14 pro'], model: 'iPhone 14 Pro' },
-  { keywords: ['pixel 8 pro'], model: 'Google Pixel 8 Pro' },
+  { keywords: ['iphone 13 pro'], model: 'iPhone 13 Pro' },
+  { keywords: ['galaxy'], model: 'Samsung Galaxy Generic' },
+  { keywords: ['iphone'], model: 'Apple iPhone Generic' },
 ];
 
 /**

@@ -144,7 +144,13 @@ export default function App() {
         
         // UNIFIED STATE UPDATE - No race conditions
         const realSerial = device.serialNumber || 'SN-UNKNOWN';
-        const identifiedModel = getModelFromProductName(productName);
+        const vendorMap = { 0x04e8: 'Samsung', 0x05ac: 'Apple', 0x18d1: 'Google' };
+        const brand = vendorMap[device.vendorId] || '';
+        
+        let identifiedModel = getModelFromProductName(productName);
+        if (!identifiedModel && brand) {
+          identifiedModel = brand + " (Detector Automat)";
+        }
         
         setFormData(prev => ({
           ...prev,
@@ -158,12 +164,11 @@ export default function App() {
         });
 
         setImeiHint(getDeviceHint(realSerial));
-        
-        if (identifiedModel) addLog(`Model recunoscut: ${identifiedModel}`);
+        if (identifiedModel) addLog(`Model identificat automat: ${identifiedModel}`);
         addLog(`ID Hardware citit: ${realSerial}`);
         
         // Trigger auto check with a slight delay
-        setTimeout(() => handleCheck(), 800);
+        setTimeout(() => handleCheck(), 1000);
       } catch (err) {
         addLog(`Atenție: Nu s-a putut deschide hardware-ul (${err.message})`);
       }
@@ -359,18 +364,30 @@ export default function App() {
         
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <div style={{textAlign: 'center', flex: 1}}>
-            <span style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>MINIM</span>
+            <span style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>MINIM (S-H)</span>
             <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{pricing.min} {pricing.currency}</div>
           </div>
           <div style={{textAlign: 'center', flex: 1, borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)'}}>
-            <span style={{fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 'bold'}}>MEDIE</span>
+            <span style={{fontSize: '0.8rem', color: 'var(--accent-color)', fontWeight: 'bold'}}>MEDIE (S-H)</span>
             <div style={{fontSize: '1.8rem', fontWeight: 'bold', color: '#fff'}}>{pricing.avg} {pricing.currency}</div>
           </div>
           <div style={{textAlign: 'center', flex: 1}}>
-            <span style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>MAXIM</span>
+            <span style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>MAXIM (S-H)</span>
             <div style={{fontSize: '1.2rem', fontWeight: 'bold'}}>{pricing.max} {pricing.currency}</div>
           </div>
         </div>
+
+        {pricing.newPrice && (
+          <div style={{marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div>
+              <span style={{fontSize: '0.85rem', color: 'var(--text-muted)'}}>Preț Nou Recomandat (Magazine Profile RO):</span>
+              <div style={{fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)'}}>Retaileri: eMAG, Flanco, Altex</div>
+            </div>
+            <div style={{fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--success)'}}>
+              {pricing.newPrice} {pricing.currency}
+            </div>
+          </div>
+        )}
 
         {pricing.isCriticalRisk && (
           <div style={{marginTop: '1rem', background: 'rgba(248, 81, 73, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', gap: '8px'}}>
