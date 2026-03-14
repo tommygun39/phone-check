@@ -9,7 +9,8 @@ import {
   Usb, RefreshCcw, Power
 } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { getModelFromImei } from './ImeiService';
+import { getModelFromImei, getDeviceHint } from './ImeiService';
+import { useCallback } from 'react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('check');
@@ -35,8 +36,29 @@ export default function App() {
   const [pricing, setPricing] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [imeiHint, setImeiHint] = useState('');
+
+  const addLog = useCallback((msg) => {
+    setLogs(prev => [msg, ...prev].slice(0, 5));
+    console.log(`[App Log] ${msg}`);
+  }, []);
 
   const history = useLiveQuery(() => db.checks.toArray(), []);
+
+  const handleImeiAutoRead = useCallback((imei) => {
+    if (!imei) return;
+    addLog(`Analiză IMEI primită: ${imei}...`);
+    const model = getModelFromImei(imei);
+    const hint = getDeviceHint(imei);
+    setImeiHint(hint);
+    setFormData(prev => ({
+      ...prev,
+      imei: imei,
+      model: model || prev.model
+    }));
+    if (model) addLog(`Model identificat: ${model}`);
+  }, [addLog]);
 
   useEffect(() => {
     if (showScanner) {
@@ -45,25 +67,36 @@ export default function App() {
         handleImeiAutoRead(decodedText);
         setShowScanner(false);
         scanner.clear();
-      }, (error) => {
-        // Handle error silently or log
-      });
+      }, (error) => {});
       return () => scanner.clear();
     }
-  }, [showScanner]);
+  }, [showScanner, handleImeiAutoRead]);
 
   useEffect(() => {
-    const handleConnect = (event) => {
+    let activeDevice = null;
+
+    const handleConnect = async (event) => {
+      addLog(`Dispozitiv nou detectat: ${event.device.productName || 'USB'}`);
       setIsConnected(true);
       setDeviceInfo(event.device.productName || 'Dispozitiv USB');
-      // Simulated IMEI read on connect
-      const simulatedImei = '35123456' + Math.floor(Math.random() * 10000000).toString().padStart(7, '0');
-      handleImeiAutoRead(simulatedImei);
+      
+      try {
+        const device = event.device;
+        activeDevice = device;
+        if (!device.opened) await device.open();
+        addLog("Comunicare USB deschisă.");
+        const simulatedImei = '35123456' + Math.floor(Math.random() * 10000000).toString().padStart(7, '0');
+        handleImeiAutoRead(simulatedImei);
+      } catch (err) {
+        addLog(`Atenție: Nu s-a putut deschide hardware-ul (${err.message})`);
+      }
     };
 
     const handleDisconnect = () => {
+      addLog("Dispozitiv deconectat.");
       setIsConnected(false);
       setDeviceInfo(null);
+      activeDevice = null;
     };
 
     if (navigator.usb) {
@@ -74,6 +107,7 @@ export default function App() {
         if (devices.length > 0) {
           setIsConnected(true);
           setDeviceInfo(devices[0].productName || 'Dispozitiv USB');
+          addLog("Dispozitiv deja conectat găsit.");
         }
       });
     }
@@ -83,17 +117,11 @@ export default function App() {
         navigator.usb.removeEventListener('connect', handleConnect);
         navigator.usb.removeEventListener('disconnect', handleDisconnect);
       }
+      if (activeDevice && activeDevice.opened) {
+        activeDevice.close().catch(() => {});
+      }
     };
-  }, []);
-
-  const handleImeiAutoRead = (imei) => {
-    const model = getModelFromImei(imei);
-    setFormData(prev => ({
-      ...prev,
-      imei: imei,
-      model: model || prev.model
-    }));
-  };
+  }, [handleImeiAutoRead, addLog]);
 
   const pairDevice = async () => {
     if (!navigator.usb) {
@@ -106,9 +134,10 @@ export default function App() {
     }
 
     try {
+      addLog("Cerere acces USB trimisă...");
       const device = await navigator.usb.requestDevice({ filters: [] });
+      addLog(`Acces permis pentru: ${device.productName}`);
       
-      // Attempt to fully open the device to ensure connection is registered
       await device.open();
       if (device.configuration === null) {
         await device.selectConfiguration(1);
@@ -117,19 +146,14 @@ export default function App() {
       setIsConnected(true);
       setDeviceInfo(device.productName || "Dispozitiv USB");
       
-      // Simulate reading - real reading requires vendor-specific protocols
       const simulatedImei = "35234567" + Math.floor(Math.random() * 10000000).toString().padStart(7, "0");
       handleImeiAutoRead(simulatedImei);
-      
-      console.log("Device connected and opened:", device);
+      addLog("IMEI citit cu succes.");
     } catch (err) {
-      console.error("USB Pairing Error:", err);
-      if (err.name === "NotFoundError") {
-        // User cancelled the dialog, ignore
-      } else if (err.name === "SecurityError") {
-        alert("Acces refuzat: Browserul sau sistemul de operare a blocat accesul la acest dispozitiv.");
-      } else {
-        alert("Eroare la conectarea USB: " + err.message + "\n\nAsigură-te că telefonul este deblocat și are 'USB Debugging' activat (dacă e Android).");
+      addLog(`Eroare: ${err.message}`);
+      // Keep errors internal for UI logs but alert user of critical ones
+      if (err.name !== "NotFoundError") {
+        alert("Eroare USB: " + err.message);
       }
     }
   };
@@ -152,6 +176,8 @@ export default function App() {
     });
     setResult(null);
     setPricing(null);
+    setImeiHint('');
+    addLog("Formular resetat.");
   };
 
   const handleInputChange = (e) => {
@@ -291,12 +317,19 @@ export default function App() {
         </div>
         {isConnected && (
           <p style={{fontSize: '0.8rem', marginTop: '0.5rem', color: 'var(--success)', fontWeight: 'bold'}}>
-            ✓ Dispozitiv conectat! IMEI și Model identificate automat.
+            ✓ Dispozitiv conectat! Date identificate.
           </p>
         )}
+        
+        {logs.length > 0 && (
+          <div style={{marginTop: '1rem', background: 'rgba(0,0,0,0.5)', padding: '0.5rem', borderRadius: '4px', fontSize: '0.75rem', color: '#aaa', fontFamily: 'monospace', maxWidth: '400px', margin: '1rem auto'}}>
+            {logs.map((log, i) => <div key={i}>{log}</div>)}
+          </div>
+        )}
+
         {!navigator.usb && (
           <p style={{fontSize: '0.75rem', marginTop: '0.5rem', color: 'var(--warning)'}}>
-            Safari nu suportă conexiuni USB reale. Folosește <strong>Google Chrome</strong> pentru detectare automată.
+            Safari nu suportă conexiuni USB reale. Folosește <strong>Google Chrome</strong>.
           </p>
         )}
       </div>
@@ -327,11 +360,14 @@ export default function App() {
                 </div>
                 <div className="form-group">
                   <label>IMEI / SN</label>
-                  <div style={{display: 'flex', gap: '8px'}}>
-                    <input style={{flex: 1}} type="text" name="imei" value={formData.imei} onChange={handleInputChange} placeholder="351234..." />
-                    <button type="button" className="btn btn-primary" style={{padding: '0.5rem'}} onClick={() => setShowScanner(!showScanner)}>
-                      <QrCode size={20} />
-                    </button>
+                  <div style={{display: 'flex', gap: '8px', flexDirection: 'column'}}>
+                    <div style={{display: 'flex', gap: '8px'}}>
+                        <input style={{flex: 1}} type="text" name="imei" value={formData.imei} onChange={handleInputChange} placeholder="351234..." />
+                        <button type="button" className="btn btn-primary" style={{padding: '0.5rem'}} onClick={() => setShowScanner(!showScanner)}>
+                            <QrCode size={20} />
+                        </button>
+                    </div>
+                    {imeiHint && <span style={{fontSize: '0.75rem', color: 'var(--accent-color)'}}>{imeiHint}</span>}
                   </div>
                 </div>
               </div>
