@@ -49,13 +49,16 @@ function simulateCloudResponse(imei) {
     setTimeout(() => {
       // If it ends with "000" simulate a block
       const isBlacklisted = imei.endsWith('000');
+      const isSamsung = imei.includes('35421510') || imei.includes('R5C');
+      
       resolve({
         source: 'Simulated Cloud API',
         blacklistStatus: isBlacklisted ? 'BLACKLISTED' : 'CLEAN',
-        warrantyStatus: 'Active',
-        kgStatus: 'Normal',
-        activationDate: '2024-01-15',
-        raw: { simulated: true }
+        warrantyStatus: isBlacklisted ? 'Void (Reported)' : 'Active (Official)',
+        kgStatus: isSamsung && isBlacklisted ? 'Locked' : 'Normal',
+        activationDate: '2024-03-10',
+        modelConfirmed: isSamsung ? 'Samsung Galaxy S22' : 'Unknown Hardware',
+        raw: { simulated: true, timestamp: new Date().toISOString() }
       });
     }, 1500);
   });
@@ -65,12 +68,13 @@ function simulateCloudResponse(imei) {
  * Normalizes different API formats into a unified internal format.
  */
 function formatApiResponse(data, provider) {
-  // Logic to map IMEI.info or IMEICheck responses to our format
   return {
     source: provider,
-    blacklistStatus: data.blacklist || 'CLEAN',
-    warrantyStatus: data.warranty || 'Unknown',
-    kgStatus: data.kg_status || 'Normal',
+    blacklistStatus: data.blacklist || data.status || 'CLEAN',
+    warrantyStatus: data.warranty || data.warranty_date || 'Unknown',
+    kgStatus: data.kg_status || data.mdm || 'Normal',
+    activationDate: data.activation_date || 'N/A',
+    modelConfirmed: data.model || 'Unknown',
     raw: data
   };
 }

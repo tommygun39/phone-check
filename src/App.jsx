@@ -595,6 +595,34 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {cloudResult && (
+              <div className="glass-panel" style={{marginTop: '1rem', border: '1px solid rgba(88, 166, 255, 0.4)'}}>
+                <h3 style={{display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-color)'}}>
+                  <Cloud size={20} /> Raport Cloud (Expert)
+                </h3>
+                <div className="detail-grid" style={{marginTop: '1rem'}}>
+                  <div className="detail-item">
+                    <span className="detail-label">Blacklist GSMA</span>
+                    <span className={`detail-value ${cloudResult.blacklistStatus === 'BLACKLISTED' ? 'text-danger' : 'text-success'}`} style={{fontWeight: 'bold'}}>
+                      {cloudResult.blacklistStatus}
+                    </span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">KG Status</span>
+                    <span className="detail-value">{cloudResult.kgStatus}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Garanție</span>
+                    <span className="detail-value">{cloudResult.warrantyStatus}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Sursă Date</span>
+                    <span className="detail-value" style={{fontSize: '0.7rem', color: 'var(--text-muted)'}}>{cloudResult.source}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
