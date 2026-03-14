@@ -6,10 +6,11 @@ import { estimatePrice } from './PricingEngine';
 import { 
   ShieldAlert, ShieldCheck, Shield, Clock, HardDrive, Smartphone, 
   History, Search, QrCode, Tag, AlertTriangle, Info, Calendar, Lock, Cpu,
-  Usb, RefreshCcw, Power
+  Usb, RefreshCcw, Power, Settings, Cloud, Key
 } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { getModelFromImei, getDeviceHint, getModelFromProductName } from './ImeiService';
+import { performCloudCheck } from './ExternalApiService';
 import { useCallback, useRef } from 'react';
 
 export default function App() {
@@ -39,7 +40,17 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [imeiHint, setImeiHint] = useState('');
   const [detectedFields, setDetectedFields] = useState({ imei: false, model: false });
+  const [apiConfig, setApiConfig] = useState(() => {
+    const saved = localStorage.getItem('phoneCheckApiConfig');
+    return saved ? JSON.parse(saved) : { key: 'DEMO_MODE', provider: 'IMEI_INFO' };
+  });
+  const [cloudCheckLoading, setCloudCheckLoading] = useState(false);
+  const [cloudResult, setCloudResult] = useState(null);
   const autoCheckTriggered = useRef(false);
+
+  useEffect(() => {
+    localStorage.setItem('phoneCheckApiConfig', JSON.stringify(apiConfig));
+  }, [apiConfig]);
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [msg, ...prev].slice(0, 5));
@@ -58,7 +69,7 @@ export default function App() {
     }
 
     addLog(`Rulăm Expert Check pentru ${formData.model || 'Dispozitiv'}...`);
-    const evaluation = calculateRiskScore(formData);
+    const evaluation = calculateRiskScore(formData, cloudResult);
     const estimated = estimatePrice(formData.model, formData.condition, evaluation.score);
     
     // Save to local database
@@ -261,8 +272,32 @@ export default function App() {
     });
     setPricing(null);
     setImeiHint('');
+    setCloudResult(null);
     setDetectedFields({ imei: false, model: false });
     addLog("Formular resetat.");
+  };
+
+  const handleCloudCheck = async () => {
+    if (!formData.imei) {
+      alert("Introduceți un IMEI/SN pentru verificarea în cloud.");
+      return;
+    }
+    
+    setCloudCheckLoading(true);
+    addLog(`Interogare Cloud (Baze de date GSMA/KG)...`);
+    
+    try {
+      const result = await performCloudCheck(formData.imei, apiConfig.key, apiConfig.provider);
+      setCloudResult(result);
+      addLog(`Răspuns Cloud primit (${result.blacklistStatus})`);
+      // Re-trigger calculation with cloud data
+      setTimeout(() => handleCheck(), 100);
+    } catch (err) {
+      addLog(`Eroare Cloud: ${err.message}`);
+      alert("Eroare la verificarea externă: " + err.message);
+    } finally {
+      setCloudCheckLoading(false);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -401,6 +436,7 @@ export default function App() {
       <div className="tabs">
         <button className={`tab ${activeTab === 'check' ? 'active' : ''}`} onClick={() => setActiveTab('check')}><Search size={18} /> Verificare</button>
         <button className={`tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}><History size={18} /> Istoric</button>
+        <button className={`tab ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}><Settings size={18} /> Setări</button>
       </div>
 
       {activeTab === 'check' && (
@@ -526,9 +562,21 @@ export default function App() {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{width: '100%', marginTop: '1rem', height: '3rem', fontSize: '1.1rem'}}>
-                <Shield size={24} /> Rulează Expert Check
-              </button>
+              <div style={{display: 'flex', gap: '1rem', marginTop: '1rem'}}>
+                <button type="submit" className="btn btn-primary" style={{flex: 1, height: '3rem', fontSize: '1.1rem'}}>
+                  <Shield size={24} /> Rulează Expert Check
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{flex: 1, height: '3rem', fontSize: '1.1rem', borderColor: 'var(--accent-color)'}}
+                  onClick={handleCloudCheck}
+                  disabled={cloudCheckLoading}
+                >
+                  {cloudCheckLoading ? <RefreshCcw className="animate-spin" size={24} /> : <Cloud size={24} color="var(--accent-color)" />}
+                  {cloudCheckLoading ? 'Verificare...' : 'Verifică în Cloud'}
+                </button>
+              </div>
             </form>
           </div>
 
@@ -551,31 +599,39 @@ export default function App() {
         </div>
       )}
 
-      {activeTab === 'history' && (
-        <div className="glass-panel">
-          <h2><HardDrive size={24} color="var(--accent-color)" /> Istoric Complet</h2>
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Model</th>
-                <th>Risc</th>
-                <th>Preț Estimat</th>
-                <th>Observații</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history?.reverse().map(h => (
-                <tr key={h.id}>
-                  <td>{new Date(h.date).toLocaleDateString()}</td>
-                  <td><strong>{h.model}</strong></td>
-                  <td><span className={`badge ${h.score >= 80 ? 'badge-danger' : 'badge-ok'}`}>{h.score}%</span></td>
-                  <td>{h.priceEstimation?.avg} {h.priceEstimation?.currency}</td>
-                  <td><small>{h.reasons.join(', ')}</small></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {activeTab === 'settings' && (
+        <div className="glass-panel" style={{maxWidth: '600px', margin: '0 auto'}}>
+          <h2 style={{marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <Settings size={24} color="var(--accent-color)" /> Configurări API Terți
+          </h2>
+          
+          <div className="form-group" style={{marginBottom: '1.5rem'}}>
+            <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+              <Key size={18} /> API Key (IMEI.info / IMEICheck)
+            </label>
+            <input 
+              type="password" 
+              value={apiConfig.key} 
+              onChange={(e) => setApiConfig({...apiConfig, key: e.target.value})}
+              placeholder="Introdu cheia ta API..."
+            />
+            <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem'}}>
+              Cheia este salvată doar local în browserul tău. Folosește "DEMO_MODE" pentru a simula verificări.
+            </p>
+          </div>
+
+          <div className="form-group" style={{marginBottom: '1.5rem'}}>
+            <label>Furnizor Servicii</label>
+            <select value={apiConfig.provider} onChange={(e) => setApiConfig({...apiConfig, provider: e.target.value})}>
+              <option value="IMEI_INFO">IMEI.info (GSMA + Korea Database)</option>
+              <option value="IMEICHECK">IMEICheck.com (Apple Specialist)</option>
+            </select>
+          </div>
+
+          <div style={{background: 'rgba(255, 255, 255, 0.05)', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem'}}>
+            <h4 style={{marginBottom: '0.5rem'}}>Abonament Activ?</h4>
+            <p color="#aaa">Pentru a funcționa, asigură-te că ai credite valabile pe platforma aleasă. Această aplicație doar integrează datele lor în procesul tău de diagnoză.</p>
+          </div>
         </div>
       )}
     </>

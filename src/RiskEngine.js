@@ -1,6 +1,25 @@
-export function calculateRiskScore(data) {
+export function calculateRiskScore(data, cloudData = null) {
   let score = 0;
   let reasons = [];
+
+  // 0. External Cloud Data (Highest Priority)
+  if (cloudData) {
+    if (cloudData.blacklistStatus === 'BLACKLISTED') {
+      score += 100;
+      reasons.push(`[CLOUD] Dispozitiv raportat BLACKLISTED / FURAT!`);
+    } else if (cloudData.blacklistStatus === 'CLEAN') {
+      reasons.push(`[CLOUD] Baza de date GSMA confirmă status CLEAN.`);
+    }
+
+    if (cloudData.kgStatus === 'Locked') {
+      score += 100;
+      reasons.push(`[CLOUD] MDM / Knox Guard este BLOCAT.`);
+    }
+    
+    if (cloudData.warrantyStatus === 'Active') {
+      score -= 5; // Slight trust bonus for active official warranty
+    }
+  }
 
   // 1. KG State check
   if (data.kgState === 'Locked' || data.kgState === 'Active') {
