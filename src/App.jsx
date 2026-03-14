@@ -38,6 +38,7 @@ export default function App() {
   const [deviceInfo, setDeviceInfo] = useState(null);
   const [logs, setLogs] = useState([]);
   const [imeiHint, setImeiHint] = useState('');
+  const [detectedFields, setDetectedFields] = useState({ imei: false, model: false });
   const autoCheckTriggered = useRef(false);
 
   const addLog = useCallback((msg) => {
@@ -130,16 +131,28 @@ export default function App() {
         if (!device.opened) await device.open();
         addLog("Comunicare USB deschisă.");
         
-        // REAL HARDWARE DATA
+        // UNIFIED STATE UPDATE - No race conditions
         const realSerial = device.serialNumber || 'SN-UNKNOWN';
         const identifiedModel = getModelFromProductName(productName);
         
-        if (identifiedModel) {
-            setFormData(prev => ({ ...prev, model: identifiedModel }));
-            addLog(`Model recunoscut: ${identifiedModel}`);
-        }
+        setFormData(prev => ({
+          ...prev,
+          imei: realSerial,
+          model: identifiedModel || prev.model
+        }));
 
-        handleImeiAutoRead(realSerial, true); 
+        setDetectedFields({
+          imei: true,
+          model: !!identifiedModel
+        });
+
+        setImeiHint(getDeviceHint(realSerial));
+        
+        if (identifiedModel) addLog(`Model recunoscut: ${identifiedModel}`);
+        addLog(`ID Hardware citit: ${realSerial}`);
+        
+        // Trigger auto check with a slight delay
+        setTimeout(() => handleCheck(), 800);
       } catch (err) {
         addLog(`Atenție: Nu s-a putut deschide hardware-ul (${err.message})`);
       }
@@ -183,8 +196,10 @@ export default function App() {
       const simulatedSN = "R5CR50XABCD";
       setIsConnected(true);
       setDeviceInfo(simulatedName);
-      setFormData(prev => ({ ...prev, model: simulatedName }));
-      handleImeiAutoRead(simulatedSN, true);
+      setFormData(prev => ({ ...prev, model: simulatedName, imei: simulatedSN }));
+      setDetectedFields({ imei: true, model: true });
+      setImeiHint(getDeviceHint(simulatedSN));
+      setTimeout(() => handleCheck(), 800);
       return;
     }
 
@@ -205,12 +220,20 @@ export default function App() {
       const realSerial = device.serialNumber || 'SN-UNKNOWN';
       const identifiedModel = getModelFromProductName(productName);
 
-      if (identifiedModel) {
-          setFormData(prev => ({ ...prev, model: identifiedModel }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        imei: realSerial,
+        model: identifiedModel || prev.model
+      }));
 
-      handleImeiAutoRead(realSerial, true);
+      setDetectedFields({
+        imei: true,
+        model: !!identifiedModel
+      });
+
+      setImeiHint(getDeviceHint(realSerial));
       addLog("Date hardware citite.");
+      setTimeout(() => handleCheck(), 800);
     } catch (err) {
       addLog(`Eroare: ${err.message}`);
       // Keep errors internal for UI logs but alert user of critical ones
@@ -236,9 +259,9 @@ export default function App() {
       carrierLock: '',
       condition: ''
     });
-    setResult(null);
     setPricing(null);
     setImeiHint('');
+    setDetectedFields({ imei: false, model: false });
     addLog("Formular resetat.");
   };
 
@@ -388,7 +411,10 @@ export default function App() {
             <form onSubmit={handleCheck}>
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
                 <div className="form-group">
-                  <label>Model Telefon</label>
+                  <label style={{display: 'flex', justifyContent: 'space-between'}}>
+                    Model Telefon
+                    {detectedFields.model && <span style={{fontSize: '0.65rem', color: 'var(--success)', fontWeight: 'bold'}}>⚡ DETECTAT</span>}
+                  </label>
                   <input list="models" type="text" name="model" value={formData.model} onChange={handleInputChange} placeholder="Ex: S23 Ultra" required />
                   <datalist id="models">
                     <option value="Samsung Galaxy S23 Ultra" />
@@ -400,7 +426,10 @@ export default function App() {
                   </datalist>
                 </div>
                 <div className="form-group">
-                  <label>IMEI / SN</label>
+                  <label style={{display: 'flex', justifyContent: 'space-between'}}>
+                    IMEI / SN
+                    {detectedFields.imei && <span style={{fontSize: '0.65rem', color: 'var(--success)', fontWeight: 'bold'}}>⚡ DETECTAT</span>}
+                  </label>
                   <div style={{display: 'flex', gap: '8px', flexDirection: 'column'}}>
                     <div style={{display: 'flex', gap: '8px'}}>
                         <input style={{flex: 1}} type="text" name="imei" value={formData.imei} onChange={handleInputChange} placeholder="351234..." />

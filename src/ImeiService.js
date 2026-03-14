@@ -67,9 +67,15 @@ export function getModelFromImei(imei) {
  */
 export function getDeviceHint(id) {
   if (!id) return "Așteptare dispozitiv...";
-  const model = getModelFromImei(id);
-  if (model) return model;
-  return "Analiză hardware...";
+  
+  // If it's a numeric IMEI, try to get model
+  const cleanId = id.toString().replace(/\D/g, '');
+  if (cleanId.length >= 8) {
+    const model = getModelFromImei(cleanId);
+    if (model) return model;
+  }
+
+  return "ID Hardware Real";
 }
 
 /**
