@@ -215,7 +215,7 @@ export default function App() {
       setFormData(prev => ({ ...prev, model: simulatedName, imei: simulatedSN }));
       setDetectedFields({ imei: true, model: true });
       setImeiHint(getDeviceHint(simulatedSN));
-      setTimeout(() => handleCheck(), 800);
+      handleCloudCheck(simulatedSN);
       return;
     }
 
@@ -249,7 +249,11 @@ export default function App() {
 
       setImeiHint(getDeviceHint(realSerial));
       addLog("Date hardware citite.");
-      setTimeout(() => handleCheck(), 800);
+      if (realSerial && realSerial !== 'SN-UNKNOWN') {
+        handleCloudCheck(realSerial);
+      } else {
+        setTimeout(() => handleCheck(), 800);
+      }
     } catch (err) {
       addLog(`Eroare: ${err.message}`);
       // Keep errors internal for UI logs but alert user of critical ones
@@ -282,24 +286,36 @@ export default function App() {
     addLog("Formular resetat.");
   };
 
-  const handleCloudCheck = async () => {
-    if (!formData.imei) {
-      alert("Introduceți un IMEI/SN pentru verificarea în cloud.");
-      return;
+  const handleCloudCheck = async (forcedImei = null) => {
+    const imeiToCheck = forcedImei || formData.imei;
+    if (!imeiToCheck) {
+      if (!forcedImei) alert("Introduceți un IMEI/SN pentru verificarea în cloud.");
+      return null;
     }
     
     setCloudCheckLoading(true);
     addLog(`Interogare Cloud (Baze de date GSMA/KG)...`);
     
     try {
-      const result = await performCloudCheck(formData.imei, apiConfig.key, apiConfig.provider);
+      const result = await performCloudCheck(imeiToCheck, apiConfig.key, apiConfig.provider);
       setCloudResult(result);
       addLog(`Răspuns Cloud primit (${result.blacklistStatus})`);
+      
+      // Auto-sync form fields based on cloud result
+      setFormData(prev => ({
+        ...prev,
+        kgState: result.kgStatus === 'Locked' ? 'Locked' : (result.kgStatus === 'Normal' ? 'Normal' : prev.kgState),
+        warrantyStatus: result.warrantyStatus?.includes('Active') ? 'Active' : (result.warrantyStatus?.includes('Expired') || result.warrantyStatus?.includes('Void') ? 'Expired' : prev.warrantyStatus),
+        model: (result.modelConfirmed && result.modelConfirmed !== 'Unknown') ? result.modelConfirmed : prev.model
+      }));
+
       // Re-trigger calculation with cloud data
       setTimeout(() => handleCheck(), 100);
+      return result;
     } catch (err) {
       addLog(`Eroare Cloud: ${err.message}`);
-      alert("Eroare la verificarea externă: " + err.message);
+      if (!forcedImei) alert("Eroare la verificarea externă: " + err.message);
+      return null;
     } finally {
       setCloudCheckLoading(false);
     }
