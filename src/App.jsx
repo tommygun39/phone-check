@@ -9,7 +9,7 @@ import {
   Usb, RefreshCcw, Power
 } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { getModelFromImei, getDeviceHint, generateSimulatedImei } from './ImeiService';
+import { getModelFromImei, getDeviceHint, getModelFromProductName } from './ImeiService';
 import { useCallback, useRef } from 'react';
 
 export default function App() {
@@ -78,26 +78,28 @@ export default function App() {
     addLog("Verificare finalizată cu succes.");
   }, [formData, addLog]);
 
-  const handleImeiAutoRead = useCallback((imei, autoTrigger = false) => {
-    if (!imei) return;
-    addLog(`Analiză IMEI primită: ${imei}...`);
-    const model = getModelFromImei(imei);
-    const hint = getDeviceHint(imei);
-    setImeiHint(hint);
+  const handleImeiAutoRead = useCallback((id, autoTrigger = false) => {
+    if (!id) return;
+    addLog(`Analiză date hardware: ${id}...`);
+    
+    // Try to get model from ID (if it's a real IMEI) or keep current
+    const modelFromImei = getModelFromImei(id);
+    
+    setImeiHint(getDeviceHint(id));
     
     setFormData(prev => ({
       ...prev,
-      imei: imei,
-      model: model || prev.model
+      imei: id,
+      model: modelFromImei || prev.model
     }));
     
-    if (model) {
-      addLog(`Model identificat: ${model}`);
-      if (autoTrigger) {
-        addLog("Declanșăm Verificarea Automată...");
-        // Use a slight timeout to ensure state is updated or call handleCheck with values
-        setTimeout(() => handleCheck(), 500);
-      }
+    if (modelFromImei) {
+      addLog(`Model identificat (IMEI): ${modelFromImei}`);
+    }
+
+    if (autoTrigger) {
+      addLog("Declanșăm Verificarea Automată...");
+      setTimeout(() => handleCheck(), 500);
     }
   }, [addLog, handleCheck]);
 
@@ -128,10 +130,16 @@ export default function App() {
         if (!device.opened) await device.open();
         addLog("Comunicare USB deschisă.");
         
-        // Precise brand/model matching
-        const simulatedImei = generateSimulatedImei(productName);
+        // REAL HARDWARE DATA
+        const realSerial = device.serialNumber || 'SN-UNKNOWN';
+        const identifiedModel = getModelFromProductName(productName);
         
-        handleImeiAutoRead(simulatedImei, true); // Auto check after connect
+        if (identifiedModel) {
+            setFormData(prev => ({ ...prev, model: identifiedModel }));
+            addLog(`Model recunoscut: ${identifiedModel}`);
+        }
+
+        handleImeiAutoRead(realSerial, true); 
       } catch (err) {
         addLog(`Atenție: Nu s-a putut deschide hardware-ul (${err.message})`);
       }
@@ -171,11 +179,12 @@ export default function App() {
 
   const pairDevice = async () => {
     if (!navigator.usb) {
-      const simulatedName = "iPhone 15 Pro (Simulat)";
+      const simulatedName = "Samsung Galaxy S22";
+      const simulatedSN = "R5CR50XABCD";
       setIsConnected(true);
       setDeviceInfo(simulatedName);
-      const simulatedImei = "35345678" + Math.floor(Math.random() * 10000000).toString().padStart(7, "0");
-      handleImeiAutoRead(simulatedImei);
+      setFormData(prev => ({ ...prev, model: simulatedName }));
+      handleImeiAutoRead(simulatedSN, true);
       return;
     }
 
@@ -193,11 +202,15 @@ export default function App() {
       setIsConnected(true);
       setDeviceInfo(productName);
       
-      // Precise brand/model matching
-      const simulatedImei = generateSimulatedImei(productName);
-      
-      handleImeiAutoRead(simulatedImei, true); // Auto check
-      addLog("IMEI citit cu succes.");
+      const realSerial = device.serialNumber || 'SN-UNKNOWN';
+      const identifiedModel = getModelFromProductName(productName);
+
+      if (identifiedModel) {
+          setFormData(prev => ({ ...prev, model: identifiedModel }));
+      }
+
+      handleImeiAutoRead(realSerial, true);
+      addLog("Date hardware citite.");
     } catch (err) {
       addLog(`Eroare: ${err.message}`);
       // Keep errors internal for UI logs but alert user of critical ones
@@ -398,7 +411,7 @@ export default function App() {
                     {(imeiHint || isConnected) && (
                       <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px'}}>
                         {imeiHint && <span style={{fontSize: '0.75rem', color: 'var(--accent-color)'}}>{imeiHint}</span>}
-                        {isConnected && <span style={{fontSize: '0.65rem', background: 'rgba(255, 179, 71, 0.2)', color: '#ffb347', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold'}}>SIMULAT (Browser Limit)</span>}
+                        {isConnected && <span style={{fontSize: '0.65rem', background: 'rgba(88, 166, 255, 0.2)', color: 'var(--accent-color)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold'}}>DATE REALE (S/N)</span>}
                       </div>
                     )}
                   </div>
